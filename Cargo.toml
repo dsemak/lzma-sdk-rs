@@ -1,0 +1,33 @@
+[package]
+name = "lzma-sdk"
+version.workspace = true
+edition.workspace = true
+license-file = "LICENSE"
+repository.workspace = true
+rust-version.workspace = true
+
+[workspace]
+members = [
+    "lzma-sdk-sys",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+repository = "https://github.com/dsemak/lzma-sdk-rs"
+rust-version = "1.82"
+version = "0.1.0"
+
+[workspace.dependencies]
+lzma-sdk-sys = { path = "lzma-sdk-sys", version = "0.1.0", default-features = false }
+
+[features]
+default = ["sdk-26-00"]
+sdk-9-20 = ["lzma-sdk-sys/sdk-9-20"]
+sdk-16-04 = ["lzma-sdk-sys/sdk-16-04"]
+sdk-19-00 = ["lzma-sdk-sys/sdk-19-00"]
+sdk-23-01 = ["lzma-sdk-sys/sdk-23-01"]
+sdk-26-00 = ["lzma-sdk-sys/sdk-26-00"]
+
+[dependencies]
+lzma-sdk-sys.workspace = true

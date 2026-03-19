@@ -1,0 +1,12 @@
+This repository is placed in the public domain.
+
+The bundled upstream LZMA SDK states:
+
+    LZMA SDK is written and placed in the public domain by Igor Pavlov.
+
+Unless otherwise noted, the Rust code and repository metadata in this repository
+follow the same licensing model.
+
+Anyone is free to copy, modify, publish, use, compile, sell, or distribute this
+software, either in source code form or as a compiled binary, for any purpose,
+commercial or non-commercial, and by any means.

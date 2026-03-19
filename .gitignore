@@ -1,0 +1,7 @@
+/target
+**/target/
+/.venv
+/__pycache__
+/.pytest_cache
+/lzma-sdk-sys/cache
+*.pyc

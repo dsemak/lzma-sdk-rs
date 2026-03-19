@@ -1,0 +1,67 @@
+name: rust
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  cargo-build:
+    name: Build (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature:
+          - sdk-9-20
+          - sdk-16-04
+          - sdk-19-00
+          - sdk-23-01
+          - sdk-26-00
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Build selected SDK feature
+        run: cargo build -p lzma-sdk --no-default-features --features ${{ matrix.feature }}
+
+  cargo-test:
+    name: Test (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        feature:
+          - sdk-9-20
+          - sdk-16-04
+          - sdk-19-00
+          - sdk-23-01
+          - sdk-26-00
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Test selected SDK feature
+        run: cargo test -p lzma-sdk --no-default-features --features ${{ matrix.feature }}

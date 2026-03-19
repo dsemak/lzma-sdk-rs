@@ -1,0 +1,21 @@
+[package]
+name = "lzma-sdk-sys"
+version.workspace = true
+edition.workspace = true
+license-file = "../LICENSE"
+repository.workspace = true
+rust-version.workspace = true
+links = "lzma-sdk"
+build = "build.rs"
+
+[features]
+default = ["sdk-26-00"]
+sdk-9-20 = []
+sdk-16-04 = []
+sdk-19-00 = []
+sdk-23-01 = []
+sdk-26-00 = []
+
+[build-dependencies]
+bindgen = "0.72.1"
+cc = "1"
