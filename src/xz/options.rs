@@ -6,7 +6,12 @@
 use std::num::NonZeroU32;
 
 use crate::error::Result;
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(
+    feature = "sdk-9-20",
+    feature = "sdk-16-04",
+    feature = "sdk-19-00",
+    feature = "sdk-23-01"
+))]
 use crate::Error;
 use crate::Lzma2Options;
 
@@ -24,7 +29,12 @@ pub enum Check {
 }
 
 impl Check {
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(any(
+        feature = "sdk-16-04",
+        feature = "sdk-19-00",
+        feature = "sdk-23-01",
+        feature = "sdk-26-00"
+    ))]
     fn as_raw(self) -> u32 {
         match self {
             Self::None => lzma_sdk_sys::XZ_CHECK_NO,
@@ -32,6 +42,20 @@ impl Check {
             Self::Crc64 => lzma_sdk_sys::XZ_CHECK_CRC64,
             Self::Sha256 => lzma_sdk_sys::XZ_CHECK_SHA256,
         }
+    }
+}
+
+#[cfg(feature = "sdk-16-04")]
+pub struct RawProps {
+    lzma2_props: lzma_sdk_sys::CLzma2EncProps,
+    filter_props: lzma_sdk_sys::CXzFilterProps,
+    props: lzma_sdk_sys::CXzProps,
+}
+
+#[cfg(feature = "sdk-16-04")]
+impl RawProps {
+    pub(crate) fn as_raw(&self) -> *const lzma_sdk_sys::CXzProps {
+        &self.props
     }
 }
 
@@ -161,17 +185,17 @@ impl Options {
     }
 
     /// Converts these options into the raw SDK encoder properties structure.
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(feature = "sdk-9-20")]
     pub fn to_raw_props(&self) -> Result<lzma_sdk_sys::CLzma2EncProps> {
         if self.check != Check::Crc32 {
             return Err(Error::UnsupportedFeature(
-                "custom XZ checks require sdk-23-01 or newer".into(),
+                "custom XZ checks require sdk-16-04 or newer".into(),
             ));
         }
 
         if self.filter != Filter::None {
             return Err(Error::UnsupportedFeature(
-                "custom XZ filters require sdk-23-01 or newer".into(),
+                "custom XZ filters require sdk-16-04 or newer".into(),
             ));
         }
 
@@ -184,7 +208,7 @@ impl Options {
             || self.reduce_size.is_some()
         {
             return Err(Error::UnsupportedFeature(
-                "advanced XZ props require sdk-23-01 or newer".into(),
+                "advanced XZ props require sdk-19-00 or newer".into(),
             ));
         }
 
@@ -192,7 +216,79 @@ impl Options {
     }
 
     /// Converts these options into the raw SDK encoder properties structure.
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(feature = "sdk-16-04")]
+    pub fn to_raw_props(&self) -> Result<RawProps> {
+        if self.block_size.is_some()
+            || self.num_thread_groups.is_some()
+            || self.num_total_threads.is_some()
+            || self.num_block_threads_reduced.is_some()
+            || self.num_block_threads_max.is_some()
+            || self.force_write_sizes_in_header
+            || self.reduce_size.is_some()
+        {
+            return Err(Error::UnsupportedFeature(
+                "advanced XZ props require sdk-19-00 or newer".into(),
+            ));
+        }
+
+        let mut filter_props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzFilterProps>::zeroed();
+
+        // SAFETY: `filter_props` points to valid storage for the SDK to initialize with defaults.
+        unsafe {
+            lzma_sdk_sys::XzFilterProps_Init(filter_props.as_mut_ptr());
+        }
+
+        // SAFETY: `XzFilterProps_Init` populated the struct with valid defaults.
+        let mut filter_props = unsafe { filter_props.assume_init() };
+
+        match self.filter {
+            Filter::None => {}
+            Filter::Delta { distance } => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_Delta;
+                filter_props.delta = distance;
+            }
+            Filter::X86 => filter_props.id = lzma_sdk_sys::XZ_ID_X86,
+            Filter::PowerPc => filter_props.id = lzma_sdk_sys::XZ_ID_PPC,
+            Filter::IA64 => filter_props.id = lzma_sdk_sys::XZ_ID_IA64,
+            Filter::Arm => filter_props.id = lzma_sdk_sys::XZ_ID_ARM,
+            Filter::ArmThumb => filter_props.id = lzma_sdk_sys::XZ_ID_ARMT,
+            Filter::Sparc => filter_props.id = lzma_sdk_sys::XZ_ID_SPARC,
+            Filter::Arm64 => {
+                return Err(Error::UnsupportedFeature(
+                    "ARM64 XZ filters require sdk-23-01 or newer".into(),
+                ));
+            }
+            Filter::RiscV => {
+                return Err(Error::UnsupportedFeature(
+                    "RISC-V XZ filters require sdk-26-00 or newer".into(),
+                ));
+            }
+        }
+
+        let mut props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzProps>::zeroed();
+
+        // SAFETY: `props` is valid storage for the SDK to initialize with defaults.
+        unsafe {
+            lzma_sdk_sys::XzProps_Init(props.as_mut_ptr());
+        }
+
+        // SAFETY: `XzProps_Init` populated the struct with valid defaults.
+        let props = unsafe { props.assume_init() };
+
+        let mut raw = RawProps {
+            lzma2_props: self.lzma2.to_raw_props(),
+            filter_props,
+            props,
+        };
+        raw.props.lzma2Props = &raw.lzma2_props;
+        raw.props.filterProps = &raw.filter_props;
+        raw.props.checkId = self.check.as_raw();
+
+        Ok(raw)
+    }
+
+    /// Converts these options into the raw SDK encoder properties structure.
+    #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
     pub fn to_raw_props(&self) -> Result<lzma_sdk_sys::CXzProps> {
         let mut props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzProps>::zeroed();
 
@@ -211,8 +307,16 @@ impl Options {
             props.blockSize = block_size;
         }
 
+        #[cfg(feature = "sdk-26-00")]
         if let Some(groups) = self.num_thread_groups {
             props.numThreadGroups = groups;
+        }
+
+        #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01"))]
+        if self.num_thread_groups.is_some() {
+            return Err(Error::UnsupportedFeature(
+                "XZ thread groups require sdk-26-00 or newer".into(),
+            ));
         }
 
         if let Some(threads) = self.num_total_threads {
@@ -252,8 +356,22 @@ impl Options {
             Filter::Arm => props.filterProps.id = lzma_sdk_sys::XZ_ID_ARM,
             Filter::ArmThumb => props.filterProps.id = lzma_sdk_sys::XZ_ID_ARMT,
             Filter::Sparc => props.filterProps.id = lzma_sdk_sys::XZ_ID_SPARC,
+            #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
             Filter::Arm64 => props.filterProps.id = lzma_sdk_sys::XZ_ID_ARM64,
+            #[cfg(any(feature = "sdk-19-00", feature = "sdk-16-04"))]
+            Filter::Arm64 => {
+                return Err(Error::UnsupportedFeature(
+                    "ARM64 XZ filters require sdk-23-01 or newer".into(),
+                ));
+            }
+            #[cfg(feature = "sdk-26-00")]
             Filter::RiscV => props.filterProps.id = lzma_sdk_sys::XZ_ID_RISCV,
+            #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-16-04"))]
+            Filter::RiscV => {
+                return Err(Error::UnsupportedFeature(
+                    "RISC-V XZ filters require sdk-26-00 or newer".into(),
+                ));
+            }
         }
 
         Ok(props)

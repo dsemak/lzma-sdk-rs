@@ -322,7 +322,7 @@ impl Options {
         props.writeEndMark = self.end_marker as u32;
         props.numThreads = self.num_threads as i32;
 
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(feature = "sdk-26-00")]
         if let Some(affinity_group) = self.affinity_group {
             props.affinityGroup = affinity_group;
         }
@@ -337,7 +337,7 @@ impl Options {
             props.affinity = affinity;
         }
 
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(feature = "sdk-26-00")]
         if let Some(affinity) = self.affinity_in_group {
             props.affinityInGroup = affinity;
         }

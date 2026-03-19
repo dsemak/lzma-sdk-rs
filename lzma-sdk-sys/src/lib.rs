@@ -8,29 +8,37 @@ use std::ptr;
 use std::slice;
 use std::sync::Once;
 
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
+type InStreamApiPtr = *mut ISeqInStream;
+#[cfg(feature = "sdk-19-00")]
 type InStreamApiPtr = *mut ISeqInStream;
 #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
 type InStreamApiPtr = ISeqInStreamPtr;
 
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
+type OutStreamApiPtr = *mut ISeqOutStream;
+#[cfg(feature = "sdk-19-00")]
 type OutStreamApiPtr = *mut ISeqOutStream;
 #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
 type OutStreamApiPtr = ISeqOutStreamPtr;
 
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
 type InStreamCallbackPtr = *mut c_void;
+#[cfg(feature = "sdk-19-00")]
+type InStreamCallbackPtr = *const ISeqInStream;
 #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
 type InStreamCallbackPtr = ISeqInStreamPtr;
 
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
 type OutStreamCallbackPtr = *mut c_void;
+#[cfg(feature = "sdk-19-00")]
+type OutStreamCallbackPtr = *const ISeqOutStream;
 #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
 type OutStreamCallbackPtr = ISeqOutStreamPtr;
 
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
 type AllocCallbackPtr = *mut c_void;
-#[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+#[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
 type AllocCallbackPtr = *const ISzAlloc;
 
 unsafe extern "C" {
@@ -106,9 +114,9 @@ unsafe extern "C" fn slice_in_stream_read(
     buf: *mut c_void,
     size: *mut usize,
 ) -> SRes {
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
     let stream = stream.cast::<SliceInStream>();
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
     let stream = stream.cast_mut().cast::<SliceInStream>();
     // SAFETY: `size` is provided by the SDK callback contract and points to writable memory.
     let requested = unsafe { *size };
@@ -159,9 +167,9 @@ unsafe extern "C" fn vec_out_stream_write(
         return 0;
     }
 
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
     let stream = stream.cast::<VecOutStream>();
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
     let stream = stream.cast_mut().cast::<VecOutStream>();
     // SAFETY: The SDK guarantees that `buf` points to `size` initialized bytes for this callback.
     let bytes = unsafe { slice::from_raw_parts(buf.cast::<u8>(), size) };

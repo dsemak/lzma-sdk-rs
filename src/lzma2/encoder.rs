@@ -203,7 +203,7 @@ pub fn compress(input: &[u8], options: &Lzma2Options) -> Result<CompressedData> 
         return Err(map_status(code));
     }
 
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
     // SAFETY: The encoder handle is valid and the provided size describes the in-memory input slice.
     unsafe {
         lzma_sdk_sys::Lzma2Enc_SetDataSize(encoder.handle, input.len() as u64);
@@ -219,7 +219,7 @@ pub fn compress(input: &[u8], options: &Lzma2Options) -> Result<CompressedData> 
 
     let out_stream = lzma_sdk_sys::VecOutStream::new(&mut compressed);
 
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
     let code = {
         let input_stream = lzma_sdk_sys::SliceInStream::new(input);
 
@@ -234,7 +234,7 @@ pub fn compress(input: &[u8], options: &Lzma2Options) -> Result<CompressedData> 
         }
     };
 
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
     // SAFETY: The encoder handle is valid, `out_stream` lives for the duration of the call,
     // and the SDK contract permits using an in-memory input buffer with a null input stream.
     let code = unsafe {
@@ -243,10 +243,10 @@ pub fn compress(input: &[u8], options: &Lzma2Options) -> Result<CompressedData> 
             out_stream.as_ptr(),
             ptr::null_mut(),
             ptr::null_mut(),
-            ptr::null(),
+            ptr::null_mut(),
             input.as_ptr(),
             input.len(),
-            ptr::null(),
+            ptr::null_mut(),
         )
     };
 

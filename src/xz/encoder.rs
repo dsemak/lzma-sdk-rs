@@ -169,7 +169,7 @@ pub(crate) fn compress(input: &[u8], options: &XzOptions) -> Result<CompressedDa
     let input_stream = lzma_sdk_sys::SliceInStream::new(input);
     let props = options.to_raw_props()?;
 
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(feature = "sdk-9-20")]
     // SAFETY: The stream wrappers and property struct remain live for the duration of the call.
     let code = unsafe {
         lzma_sdk_sys::Xz_Encode(
@@ -177,6 +177,28 @@ pub(crate) fn compress(input: &[u8], options: &XzOptions) -> Result<CompressedDa
             input_stream.as_ptr(),
             &props,
             0,
+            std::ptr::null_mut(),
+        )
+    };
+
+    #[cfg(feature = "sdk-16-04")]
+    // SAFETY: The stream wrappers and property struct remain live for the duration of the call.
+    let code = unsafe {
+        lzma_sdk_sys::Xz_Encode(
+            out_stream.as_ptr(),
+            input_stream.as_ptr(),
+            props.as_raw(),
+            std::ptr::null_mut(),
+        )
+    };
+
+    #[cfg(feature = "sdk-19-00")]
+    // SAFETY: The stream wrappers and property struct remain live for the duration of the call.
+    let code = unsafe {
+        lzma_sdk_sys::Xz_Encode(
+            out_stream.as_ptr(),
+            input_stream.as_ptr(),
+            &props,
             std::ptr::null_mut(),
         )
     };

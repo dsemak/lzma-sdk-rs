@@ -109,7 +109,7 @@ impl Options {
         props.lzmaProps = self.lzma.to_raw_encoder_props();
 
         if let Some(block_size) = self.block_size {
-            #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+            #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
             let block_size = match usize::try_from(block_size) {
                 Ok(value) => value,
                 Err(_) => usize::MAX,
@@ -117,17 +117,17 @@ impl Options {
             props.blockSize = block_size;
         }
 
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
         if let Some(num_block_threads_reduced) = self.num_block_threads_reduced {
             props.numBlockThreads_Reduced = num_block_threads_reduced as i32;
         }
 
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
         if let Some(num_block_threads_max) = self.num_block_threads_max {
             props.numBlockThreads_Max = num_block_threads_max as i32;
         }
 
-        #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+        #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
         if let Some(num_block_threads) = self
             .num_block_threads_max
             .or(self.num_block_threads_reduced)
@@ -137,7 +137,7 @@ impl Options {
 
         props.numTotalThreads = self.num_total_threads as i32;
 
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(feature = "sdk-26-00")]
         if let Some(num_thread_groups) = self.num_thread_groups {
             props.numThreadGroups = num_thread_groups;
         }

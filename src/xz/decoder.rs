@@ -224,7 +224,12 @@ fn decode(
 }
 
 /// Initializes the `XZ` unpacker state.
-#[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+#[cfg(any(
+    feature = "sdk-16-04",
+    feature = "sdk-19-00",
+    feature = "sdk-23-01",
+    feature = "sdk-26-00"
+))]
 fn init_unpacker(state: *mut lzma_sdk_sys::CXzUnpacker) -> Result<()> {
     // SAFETY: `state` points to valid storage for the unpacker and the allocator remains valid.
     unsafe {
@@ -235,7 +240,7 @@ fn init_unpacker(state: *mut lzma_sdk_sys::CXzUnpacker) -> Result<()> {
 }
 
 /// Initializes the legacy `XZ` unpacker state.
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(feature = "sdk-9-20")]
 fn init_unpacker(state: *mut lzma_sdk_sys::CXzUnpacker) -> Result<()> {
     // SAFETY: `state` points to valid storage for the legacy unpacker create routine.
     let code = unsafe { lzma_sdk_sys::XzUnpacker_Create(state, alloc()) };
@@ -247,7 +252,12 @@ fn init_unpacker(state: *mut lzma_sdk_sys::CXzUnpacker) -> Result<()> {
 }
 
 /// Resets the `XZ` unpacker state.
-#[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+#[cfg(any(
+    feature = "sdk-16-04",
+    feature = "sdk-19-00",
+    feature = "sdk-23-01",
+    feature = "sdk-26-00"
+))]
 fn reset_unpacker(state: &mut lzma_sdk_sys::CXzUnpacker) {
     // SAFETY: `state` is an initialized unpacker owned by the caller.
     unsafe {
@@ -256,11 +266,11 @@ fn reset_unpacker(state: &mut lzma_sdk_sys::CXzUnpacker) {
 }
 
 /// Resets the legacy `XZ` unpacker state.
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(feature = "sdk-9-20")]
 fn reset_unpacker(_state: &mut lzma_sdk_sys::CXzUnpacker) {}
 
 /// Performs a single raw `XZ` decode operation into the provided output buffer.
-#[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+#[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
 #[allow(clippy::too_many_arguments)]
 fn decode_impl(
     state: &mut lzma_sdk_sys::CXzUnpacker,
@@ -292,7 +302,7 @@ fn decode_impl(
 }
 
 /// Performs a single raw `XZ` decode operation into the provided output buffer.
-#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
 fn decode_impl(
     state: &mut lzma_sdk_sys::CXzUnpacker,
     dest: *mut u8,
@@ -313,8 +323,12 @@ fn decode_impl(
             src,
             src_len,
             match finish_mode {
-                FinishMode::Any => lzma_sdk_sys::ECoderFinishMode_CODER_FINISH_ANY as i32,
-                FinishMode::End => lzma_sdk_sys::ECoderFinishMode_CODER_FINISH_END as i32,
+                FinishMode::Any => (lzma_sdk_sys::ECoderFinishMode_CODER_FINISH_ANY)
+                    .try_into()
+                    .unwrap(),
+                FinishMode::End => (lzma_sdk_sys::ECoderFinishMode_CODER_FINISH_END)
+                    .try_into()
+                    .unwrap(),
             },
             status,
         )
