@@ -240,14 +240,14 @@ mod tests {
         let props = options.to_raw_props();
 
         assert_eq!(props.blockSize, 1 << 20);
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
         assert_eq!(props.numBlockThreads_Reduced, 2);
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(any(feature = "sdk-19-00", feature = "sdk-23-01", feature = "sdk-26-00"))]
         assert_eq!(props.numBlockThreads_Max, 4);
-        #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+        #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
         assert_eq!(props.numBlockThreads, 4);
         assert_eq!(props.numTotalThreads, 3);
-        #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+        #[cfg(feature = "sdk-26-00")]
         assert_eq!(props.numThreadGroups, 5);
         assert_eq!(props.lzmaProps.writeEndMark, EndMarkerMode::Enabled as u32);
     }

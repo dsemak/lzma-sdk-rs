@@ -46,6 +46,7 @@ impl Check {
 }
 
 #[cfg(feature = "sdk-16-04")]
+#[derive(Debug)]
 pub struct RawProps {
     lzma2_props: lzma_sdk_sys::CLzma2EncProps,
     filter_props: lzma_sdk_sys::CXzFilterProps,
@@ -241,18 +242,37 @@ impl Options {
         // SAFETY: `XzFilterProps_Init` populated the struct with valid defaults.
         let mut filter_props = unsafe { filter_props.assume_init() };
 
-        match self.filter {
-            Filter::None => {}
+        let has_filter = match self.filter {
+            Filter::None => false,
             Filter::Delta { distance } => {
                 filter_props.id = lzma_sdk_sys::XZ_ID_Delta;
                 filter_props.delta = distance;
+                true
             }
-            Filter::X86 => filter_props.id = lzma_sdk_sys::XZ_ID_X86,
-            Filter::PowerPc => filter_props.id = lzma_sdk_sys::XZ_ID_PPC,
-            Filter::IA64 => filter_props.id = lzma_sdk_sys::XZ_ID_IA64,
-            Filter::Arm => filter_props.id = lzma_sdk_sys::XZ_ID_ARM,
-            Filter::ArmThumb => filter_props.id = lzma_sdk_sys::XZ_ID_ARMT,
-            Filter::Sparc => filter_props.id = lzma_sdk_sys::XZ_ID_SPARC,
+            Filter::X86 => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_X86;
+                true
+            }
+            Filter::PowerPc => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_PPC;
+                true
+            }
+            Filter::IA64 => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_IA64;
+                true
+            }
+            Filter::Arm => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_ARM;
+                true
+            }
+            Filter::ArmThumb => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_ARMT;
+                true
+            }
+            Filter::Sparc => {
+                filter_props.id = lzma_sdk_sys::XZ_ID_SPARC;
+                true
+            }
             Filter::Arm64 => {
                 return Err(Error::UnsupportedFeature(
                     "ARM64 XZ filters require sdk-23-01 or newer".into(),
@@ -263,7 +283,7 @@ impl Options {
                     "RISC-V XZ filters require sdk-26-00 or newer".into(),
                 ));
             }
-        }
+        };
 
         let mut props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzProps>::zeroed();
 
@@ -281,7 +301,11 @@ impl Options {
             props,
         };
         raw.props.lzma2Props = &raw.lzma2_props;
-        raw.props.filterProps = &raw.filter_props;
+        raw.props.filterProps = if has_filter {
+            &raw.filter_props
+        } else {
+            std::ptr::null()
+        };
         raw.props.checkId = self.check.as_raw();
 
         Ok(raw)
@@ -455,7 +479,12 @@ mod tests {
     #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
     use std::num::NonZeroU32;
 
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(any(
+        feature = "sdk-9-20",
+        feature = "sdk-16-04",
+        feature = "sdk-19-00",
+        feature = "sdk-23-01"
+    ))]
     use crate::Error;
 
     use super::{Check, Filter, Options};
@@ -476,13 +505,13 @@ mod tests {
         assert_eq!(options.reduce_size, None);
     }
 
-    #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04", feature = "sdk-19-00"))]
+    #[cfg(feature = "sdk-9-20")]
     #[test]
-    fn legacy_sdk_rejects_newer_xz_features() {
+    fn sdk_9_20_rejects_newer_xz_features() {
         let unsupported_check = Options::default().with_check(Check::Sha256).to_raw_props();
         assert_eq!(
             unsupported_check.unwrap_err(),
-            Error::UnsupportedFeature("custom XZ checks require sdk-23-01 or newer".into())
+            Error::UnsupportedFeature("custom XZ checks require sdk-16-04 or newer".into())
         );
 
         let unsupported_filter = Options::default()
@@ -490,19 +519,96 @@ mod tests {
             .to_raw_props();
         assert_eq!(
             unsupported_filter.unwrap_err(),
-            Error::UnsupportedFeature("custom XZ filters require sdk-23-01 or newer".into())
+            Error::UnsupportedFeature("custom XZ filters require sdk-16-04 or newer".into())
         );
 
         let unsupported_advanced = Options::default().with_block_size(1 << 20).to_raw_props();
         assert_eq!(
             unsupported_advanced.unwrap_err(),
-            Error::UnsupportedFeature("advanced XZ props require sdk-23-01 or newer".into())
+            Error::UnsupportedFeature("advanced XZ props require sdk-19-00 or newer".into())
         );
     }
 
-    #[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+    #[cfg(feature = "sdk-16-04")]
     #[test]
-    fn newer_sdk_maps_xz_properties() {
+    fn sdk_16_04_rejects_newer_xz_features() {
+        let unsupported_advanced = Options::default().with_block_size(1 << 20).to_raw_props();
+        assert_eq!(
+            unsupported_advanced.unwrap_err(),
+            Error::UnsupportedFeature("advanced XZ props require sdk-19-00 or newer".into())
+        );
+
+        let unsupported_arm64 = Options::default().with_filter(Filter::Arm64).to_raw_props();
+        assert_eq!(
+            unsupported_arm64.unwrap_err(),
+            Error::UnsupportedFeature("ARM64 XZ filters require sdk-23-01 or newer".into())
+        );
+
+        let unsupported_riscv = Options::default().with_filter(Filter::RiscV).to_raw_props();
+        assert_eq!(
+            unsupported_riscv.unwrap_err(),
+            Error::UnsupportedFeature("RISC-V XZ filters require sdk-26-00 or newer".into())
+        );
+    }
+
+    #[cfg(feature = "sdk-19-00")]
+    #[test]
+    fn sdk_19_00_rejects_newer_xz_features() {
+        let unsupported_arm64 = Options::default().with_filter(Filter::Arm64).to_raw_props();
+        assert_eq!(
+            unsupported_arm64.unwrap_err(),
+            Error::UnsupportedFeature("ARM64 XZ filters require sdk-23-01 or newer".into())
+        );
+
+        let unsupported_riscv = Options::default().with_filter(Filter::RiscV).to_raw_props();
+        assert_eq!(
+            unsupported_riscv.unwrap_err(),
+            Error::UnsupportedFeature("RISC-V XZ filters require sdk-26-00 or newer".into())
+        );
+
+        let unsupported_thread_groups = Options::default().with_num_thread_groups(2).to_raw_props();
+        assert_eq!(
+            unsupported_thread_groups.unwrap_err(),
+            Error::UnsupportedFeature("XZ thread groups require sdk-26-00 or newer".into())
+        );
+    }
+
+    #[cfg(feature = "sdk-23-01")]
+    #[test]
+    fn sdk_23_01_maps_xz_properties_without_thread_groups() {
+        let options = Options::builder()
+            .check(Check::Sha256)
+            .filter(Filter::Delta { distance: 8 })
+            .block_size(1 << 20)
+            .num_total_threads(NonZeroU32::new(3).unwrap())
+            .num_block_threads_reduced(4)
+            .num_block_threads_max(5)
+            .force_write_sizes_in_header(true)
+            .reduce_size(1234)
+            .build();
+
+        let props = options.to_raw_props().unwrap();
+
+        assert_eq!(props.checkId, lzma_sdk_sys::XZ_CHECK_SHA256);
+        assert_eq!(props.blockSize, 1 << 20);
+        assert_eq!(props.numTotalThreads, 3);
+        assert_eq!(props.numBlockThreads_Reduced, 4);
+        assert_eq!(props.numBlockThreads_Max, 5);
+        assert_eq!(props.forceWriteSizesInHeader, 1);
+        assert_eq!(props.reduceSize, 1234);
+        assert_eq!(props.filterProps.id, lzma_sdk_sys::XZ_ID_Delta);
+        assert_eq!(props.filterProps.delta, 8);
+
+        let unsupported_thread_groups = Options::default().with_num_thread_groups(2).to_raw_props();
+        assert_eq!(
+            unsupported_thread_groups.unwrap_err(),
+            Error::UnsupportedFeature("XZ thread groups require sdk-26-00 or newer".into())
+        );
+    }
+
+    #[cfg(feature = "sdk-26-00")]
+    #[test]
+    fn sdk_26_00_maps_xz_properties() {
         let options = Options::builder()
             .check(Check::Sha256)
             .filter(Filter::Delta { distance: 8 })
