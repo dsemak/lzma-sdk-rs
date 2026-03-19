@@ -49,14 +49,30 @@ impl Check {
 #[derive(Debug)]
 pub struct RawProps {
     lzma2_props: lzma_sdk_sys::CLzma2EncProps,
-    filter_props: lzma_sdk_sys::CXzFilterProps,
-    props: lzma_sdk_sys::CXzProps,
+    filter_props: Option<lzma_sdk_sys::CXzFilterProps>,
+    check_id: u32,
 }
 
 #[cfg(feature = "sdk-16-04")]
 impl RawProps {
-    pub(crate) fn as_raw(&self) -> *const lzma_sdk_sys::CXzProps {
-        &self.props
+    pub(crate) fn with_raw<R>(&self, f: impl FnOnce(*const lzma_sdk_sys::CXzProps) -> R) -> R {
+        let mut props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzProps>::zeroed();
+
+        // SAFETY: `props` is valid storage for the SDK to initialize with defaults.
+        unsafe {
+            lzma_sdk_sys::XzProps_Init(props.as_mut_ptr());
+        }
+
+        // SAFETY: `XzProps_Init` populated the struct with valid defaults.
+        let mut props = unsafe { props.assume_init() };
+        props.lzma2Props = &self.lzma2_props;
+        props.filterProps = match &self.filter_props {
+            Some(filter_props) => filter_props,
+            None => std::ptr::null(),
+        };
+        props.checkId = self.check_id;
+
+        f(&props)
     }
 }
 
@@ -285,30 +301,11 @@ impl Options {
             }
         };
 
-        let mut props = std::mem::MaybeUninit::<lzma_sdk_sys::CXzProps>::zeroed();
-
-        // SAFETY: `props` is valid storage for the SDK to initialize with defaults.
-        unsafe {
-            lzma_sdk_sys::XzProps_Init(props.as_mut_ptr());
-        }
-
-        // SAFETY: `XzProps_Init` populated the struct with valid defaults.
-        let props = unsafe { props.assume_init() };
-
-        let mut raw = RawProps {
+        Ok(RawProps {
             lzma2_props: self.lzma2.to_raw_props(),
-            filter_props,
-            props,
-        };
-        raw.props.lzma2Props = &raw.lzma2_props;
-        raw.props.filterProps = if has_filter {
-            &raw.filter_props
-        } else {
-            std::ptr::null()
-        };
-        raw.props.checkId = self.check.as_raw();
-
-        Ok(raw)
+            filter_props: has_filter.then_some(filter_props),
+            check_id: self.check.as_raw(),
+        })
     }
 
     /// Converts these options into the raw SDK encoder properties structure.
