@@ -1,45 +1,49 @@
 # `lzma-sdk-rs`
 
-Safe Rust wrappers around the official `LZMA SDK`.
+Rust wrappers around the official `LZMA SDK`.
 
-Official upstream:
+The goal of this crate is pretty simple: expose the SDK in a way that feels like normal Rust,
+without hiding the low-level pieces you still need when working with raw `LZMA`, `LZMA2`, or `XZ`
+streams.
+
+Upstream references:
 
 - SDK page: [https://www.7-zip.org/sdk.html](https://www.7-zip.org/sdk.html)
 - Download page: [https://www.7-zip.org/download.html](https://www.7-zip.org/download.html)
 
-This repository contains:
+This repository is split into a few straightforward parts:
 
 - `src/` with the safe Rust API
 - `lzma-sdk-sys/` with vendored upstream snapshots, FFI generation, build glue, and import tooling
 - `docs/` with update and source verification notes
 
-## API shape
+## API Overview
 
-The crate now has two complementary surfaces.
+There are two ways to use the crate.
 
-- The primary safe API is built around owned `Stream`, `Encoder`, and `Decoder` types.
-- The format modules `lzma_sdk::lzma`, `lzma_sdk::lzma2`, and `lzma_sdk::xz` remain available as direct compatibility layers with one-shot helpers and format-specific state.
+- If you want a consistent entry point, start with `Stream` and build owned encoders or decoders from it.
+- If you are working directly with format details, use `lzma_sdk::lzma`, `lzma_sdk::lzma2`, or `lzma_sdk::xz`.
 
-This layout is meant to make future integration with `lzma-safe`-style code much less painful while preserving the current module-oriented helpers.
+That split is intentional. The high-level API keeps the common path simple, while the format
+modules still let you get at typed options, raw properties, and per-format state when you need it.
 
-## High-level example
+## High-Level Example
 
 ```rust
-use lzma_sdk::{Action, Stream};
-use lzma_sdk::encoder::options::XzOptions;
+use lzma_sdk::{LzmaAction, Stream, XzOptions};
 
 let stream = Stream::new();
-let mut encoder = stream.encoder(XzOptions::default())?;
+let mut encoder = stream.encoder(XzOptions::default());
 
 let input = b"hello from lzma-sdk";
 let mut compressed = Vec::new();
 let mut encoded_chunk = [0_u8; 64];
 
-let (_, written) = encoder.process(input, &mut encoded_chunk, Action::Finish)?;
+let (_, written) = encoder.process(input, &mut encoded_chunk, LzmaAction::Finish)?;
 compressed.extend_from_slice(&encoded_chunk[..written]);
 
 while !encoder.is_finished() {
-    let (_, written) = encoder.process(&[], &mut encoded_chunk, Action::Finish)?;
+    let (_, written) = encoder.process(&[], &mut encoded_chunk, LzmaAction::Finish)?;
     compressed.extend_from_slice(&encoded_chunk[..written]);
 }
 
@@ -51,9 +55,9 @@ let mut decoded_chunk = [0_u8; 64];
 
 loop {
     let action = if offset == compressed.len() {
-        Action::Finish
+        LzmaAction::Finish
     } else {
-        Action::Run
+        LzmaAction::Run
     };
     let (consumed, written) = decoder.process(&compressed[offset..], &mut decoded_chunk, action)?;
     offset += consumed;
@@ -67,25 +71,62 @@ assert_eq!(restored, input);
 # Ok::<(), lzma_sdk::Error>(())
 ```
 
-## Format-specific examples
+## Format-Specific Examples
 
 ### Raw `LZMA`
 
 ```rust
 use lzma_sdk::{
-    CompressionLevel, CompressionOptions, EndMarkerMode, FastBytes, decompress_data,
-    encode_with_options,
+    CompressionLevel, EndMarkerMode, FastBytes, LzmaAction, LzmaOptions, Stream,
 };
 
-let options = CompressionOptions::builder()
+let options = LzmaOptions::builder()
     .level(CompressionLevel::new(7)?)
     .fast_bytes(FastBytes::new(64)?)
     .end_marker(EndMarkerMode::Enabled)
     .build();
 
 let payload = b"example payload".repeat(128);
-let compressed = encode_with_options(&payload, &options)?;
-let restored = decompress_data(&compressed)?;
+let stream = Stream::new();
+let mut encoder = stream.raw_encoder(options);
+let mut encoded_chunk = vec![0_u8; payload.len() + 1024];
+let mut compressed = Vec::new();
+
+let (_, written) = encoder.process(&payload, &mut encoded_chunk, LzmaAction::Finish)?;
+compressed.extend_from_slice(&encoded_chunk[..written]);
+
+while !encoder.is_finished() {
+    let (_, written) = encoder.process(&[], &mut encoded_chunk, LzmaAction::Finish)?;
+    compressed.extend_from_slice(&encoded_chunk[..written]);
+}
+
+let encoded = encoder.encoded().ok_or(lzma_sdk::Error::Param)?.clone();
+let raw_props = encoded.props;
+let typed_props = encoded.properties()?;
+let raw_payload = encoded.compressed;
+
+assert_eq!(raw_props, typed_props.encode());
+assert_eq!(compressed, raw_payload);
+
+let stream = Stream::new();
+let mut decoder = stream.raw_decoder(&typed_props)?;
+let mut restored = Vec::new();
+let mut decoded_chunk = [0_u8; 64];
+let mut offset = 0;
+
+loop {
+    let action = if offset == raw_payload.len() {
+        LzmaAction::Finish
+    } else {
+        LzmaAction::Run
+    };
+    let (consumed, written) = decoder.process(&raw_payload[offset..], &mut decoded_chunk, action)?;
+    offset += consumed;
+    restored.extend_from_slice(&decoded_chunk[..written]);
+    if decoder.is_finished() {
+        break;
+    }
+}
 
 assert_eq!(restored, payload);
 # Ok::<(), lzma_sdk::Error>(())
@@ -94,11 +135,47 @@ assert_eq!(restored, payload);
 ### `LZMA2`
 
 ```rust
-use lzma_sdk::lzma2;
+use lzma_sdk::{Lzma2Options, LzmaAction, Stream};
 
 let payload = b"lzma2 payload".repeat(256);
-let compressed = lzma2::encode(&payload)?;
-let restored = compressed.decompress()?;
+let stream = Stream::new();
+let mut encoder = stream.lzma2_encoder(Lzma2Options::default());
+let mut encoded_chunk = vec![0_u8; payload.len() + 1024];
+let mut compressed = Vec::new();
+
+let (_, written) = encoder.process(&payload, &mut encoded_chunk, LzmaAction::Finish)?;
+compressed.extend_from_slice(&encoded_chunk[..written]);
+
+while !encoder.is_finished() {
+    let (_, written) = encoder.process(&[], &mut encoded_chunk, LzmaAction::Finish)?;
+    compressed.extend_from_slice(&encoded_chunk[..written]);
+}
+
+let encoded = encoder.encoded().ok_or(lzma_sdk::Error::Param)?.clone();
+let property = encoded.property;
+let raw_payload = encoded.compressed;
+
+assert_eq!(compressed, raw_payload);
+
+let stream = Stream::new();
+let mut decoder = stream.lzma2_decoder(property)?;
+let mut restored = Vec::new();
+let mut decoded_chunk = [0_u8; 64];
+let mut offset = 0;
+
+loop {
+    let action = if offset == raw_payload.len() {
+        LzmaAction::Finish
+    } else {
+        LzmaAction::Run
+    };
+    let (consumed, written) = decoder.process(&raw_payload[offset..], &mut decoded_chunk, action)?;
+    offset += consumed;
+    restored.extend_from_slice(&decoded_chunk[..written]);
+    if decoder.is_finished() {
+        break;
+    }
+}
 
 assert_eq!(restored, payload);
 # Ok::<(), lzma_sdk::Error>(())
@@ -107,27 +184,71 @@ assert_eq!(restored, payload);
 ### `XZ`
 
 ```rust
-use lzma_sdk::xz;
+use lzma_sdk::{LzmaAction, Stream, XzOptions};
 
 let payload = b"xz payload".repeat(256);
-let compressed = xz::encode(&payload)?;
-let restored = xz::decode(&compressed.compressed)?;
+let stream = Stream::new();
+let mut encoder = stream.encoder(XzOptions::default());
+let mut encoded_chunk = vec![0_u8; payload.len() + 1024];
+let mut compressed = Vec::new();
 
-assert_eq!(restored.output, payload);
+let (_, written) = encoder.process(&payload, &mut encoded_chunk, LzmaAction::Finish)?;
+compressed.extend_from_slice(&encoded_chunk[..written]);
+
+while !encoder.is_finished() {
+    let (_, written) = encoder.process(&[], &mut encoded_chunk, LzmaAction::Finish)?;
+    compressed.extend_from_slice(&encoded_chunk[..written]);
+}
+
+let encoded = encoder.encoded().ok_or(lzma_sdk::Error::Param)?.clone();
+let raw_payload = encoded.compressed;
+
+assert_eq!(compressed, raw_payload);
+
+let stream = Stream::new();
+let mut decoder = stream.decoder()?;
+let mut restored = Vec::new();
+let mut decoded_chunk = [0_u8; 64];
+let mut offset = 0;
+
+loop {
+    let action = if offset == raw_payload.len() {
+        LzmaAction::Finish
+    } else {
+        LzmaAction::Run
+    };
+    let (consumed, written) = decoder.process(&raw_payload[offset..], &mut decoded_chunk, action)?;
+    offset += consumed;
+    restored.extend_from_slice(&decoded_chunk[..written]);
+    if decoder.is_finished() {
+        break;
+    }
+}
+
+assert_eq!(restored, payload);
 # Ok::<(), lzma_sdk::Error>(())
 ```
 
 ## Notes
 
-- Raw `LZMA` exposes typed props and advanced encoder flags such as algorithm, match finder mode, hash bytes, and end-marker handling.
-- Unknown-size raw `LZMA` decoding is reliable only for streams with an end marker.
-- The new owned encoders currently buffer input until `Action::Finish`, because the safe layer still builds on one-shot SDK encode primitives. The decoder side is genuinely incremental.
-- `decode_to_writer()` and `write_decompressed_to()` now stream decoded output to the destination writer instead of buffering the whole decoded payload first.
-- The vendored SDK is currently built in single-thread mode. Thread-count fields are exposed for forward compatibility, but multi-thread execution should not be relied on yet.
+- Raw `LZMA` gives you typed props plus the usual tuning knobs like algorithm, match finder mode,
+  hash bytes, and end-marker handling.
+- Once an encoder finishes, you can keep the raw pieces and reuse them later:
+  `LzmaCompressedData::props`, `LzmaCompressedData::compressed`,
+  `Lzma2CompressedData::property`, `Lzma2CompressedData::compressed`, and
+  `XzCompressedData::compressed`.
+- Raw `LZMA` streams without an end marker are awkward to decode when the size is unknown, so the
+  reliable path is to use an end marker.
+- Encoders created through the owned API still buffer input until `LzmaAction::Finish`. That is a
+  limitation of the current safe wrapper over the one-shot SDK encode primitives. Decoding is
+  actually incremental.
+- The vendored SDK is built in single-thread mode right now. Thread-count options are exposed for
+  compatibility and future work, but they should not be treated as real multi-threaded execution
+  today.
 
-## Feature flags
+## Feature Flags
 
-Select exactly one mirrored SDK version feature:
+Pick exactly one mirrored SDK version feature:
 
 - `sdk-9-20`
 - `sdk-16-04`
@@ -135,15 +256,18 @@ Select exactly one mirrored SDK version feature:
 - `sdk-23-01`
 - `sdk-26-00`
 
-The default feature is `sdk-26-00`. These features are mutually exclusive.
+The default is `sdk-26-00`. These features are mutually exclusive.
 
-## Update
+## Updating The Vendored SDK
 
-See `lzma-sdk-sys/README.md` for the mirror layout and reproducible import flow.
-See `lzma-sdk-sys/docs/UPDATE.md` and `lzma-sdk-sys/docs/SOURCE-VERIFICATION.md` for the operational details.
+If you need to refresh the vendored SDK or verify where a snapshot came from:
+
+- see `lzma-sdk-sys/README.md` for the mirror layout and import flow
+- see `lzma-sdk-sys/docs/UPDATE.md` and `lzma-sdk-sys/docs/SOURCE-VERIFICATION.md` for the
+  operational details
 
 ## License
 
-The upstream `LZMA SDK` is public domain according to the official SDK page.
+According to the official SDK page, the upstream `LZMA SDK` is in the public domain.
 
-This repository follows the same licensing model. See `LICENSE`.
+This repository follows the same model. See `LICENSE`.
