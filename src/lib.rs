@@ -67,6 +67,7 @@
 
 pub mod alone;
 pub mod error;
+pub mod filter;
 pub mod lzma;
 pub mod lzma2;
 pub mod stream;
@@ -74,6 +75,7 @@ pub mod xz;
 
 pub use alone::{Decoder as AloneDecoder, Encoder as AloneEncoder, LZMA_ALONE_HEADER_SIZE};
 pub use error::{Error, Result};
+pub use filter::{BranchConverter, BranchFilter, BranchMode, DeltaFilter};
 pub use lzma::{
     FinishMode, LzmaAction, LzmaOptions, LzmaOptionsBuilder, LzmaProps, RawDecoder, RawEncoder,
     LZMA_PROPS_SIZE,
