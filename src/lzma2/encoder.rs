@@ -6,6 +6,9 @@ use std::ptr;
 
 use crate::error::{map_status, Error, Result};
 use crate::lzma;
+#[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
+use crate::stream::SliceInStream;
+use crate::stream::VecOutStream;
 use crate::{alloc, drain_pending, Lzma2Options, Lzma2Property};
 
 /// Slack added to the input length to allocate the output buffer.
@@ -217,11 +220,11 @@ pub fn compress(input: &[u8], options: &Lzma2Options) -> Result<CompressedData> 
     let mut compressed =
         Vec::with_capacity(input.len().saturating_add(ENCODE_OUTPUT_CAPACITY_SLACK));
 
-    let out_stream = lzma_sdk_sys::VecOutStream::new(&mut compressed);
+    let out_stream = VecOutStream::new(&mut compressed);
 
     #[cfg(any(feature = "sdk-9-20", feature = "sdk-16-04"))]
     let code = {
-        let input_stream = lzma_sdk_sys::SliceInStream::new(input);
+        let input_stream = SliceInStream::new(input);
 
         // SAFETY: The encoder handle is valid and both stream wrappers outlive the call.
         unsafe {

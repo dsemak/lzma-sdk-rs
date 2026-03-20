@@ -3,6 +3,7 @@
 //! This module exposes a safe, ergonomic interface to the low-level XZ encoding routines.
 
 use crate::error::{map_status, Error, Result};
+use crate::stream::{SliceInStream, VecOutStream};
 use crate::{drain_pending, initialize_xz_crc_tables, LzmaAction, XzOptions};
 
 /// Slack added to the input length to allocate the output buffer.
@@ -150,7 +151,7 @@ pub(crate) fn compress(input: &[u8], options: &XzOptions) -> Result<CompressedDa
 
     let mut output = Vec::with_capacity(input.len().saturating_add(ENCODE_OUTPUT_CAPACITY_SLACK));
 
-    let out_stream = lzma_sdk_sys::VecOutStream::new(&mut output);
+    let out_stream = VecOutStream::new(&mut output);
 
     if input.is_empty() {
         // SAFETY: `out_stream` owns a live `Vec<u8>` for the duration of this call.
@@ -166,7 +167,7 @@ pub(crate) fn compress(input: &[u8], options: &XzOptions) -> Result<CompressedDa
         });
     }
 
-    let input_stream = lzma_sdk_sys::SliceInStream::new(input);
+    let input_stream = SliceInStream::new(input);
     let props = options.to_raw_props()?;
 
     #[cfg(feature = "sdk-9-20")]

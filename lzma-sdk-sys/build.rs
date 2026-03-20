@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 const FEATURE_VERSIONS: &[(&str, &str)] = &[
@@ -27,7 +28,7 @@ fn supports_lzma2_multithread(version: &str) -> bool {
     matches!(version, "19.00" | "23.01" | "26.00")
 }
 
-fn collect_existing_sources(c_root: &PathBuf, files: &[&str]) -> Vec<PathBuf> {
+fn collect_existing_sources(c_root: &Path, files: &[&str]) -> Vec<PathBuf> {
     files
         .iter()
         .map(|file| c_root.join(file))
@@ -112,6 +113,7 @@ fn main() {
         .allowlist_type("ILookInStreamPtr")
         .allowlist_type("ICompressProgress")
         .allowlist_type("ICompressProgressPtr")
+        .allowlist_type("CLookToRead")
         .allowlist_type("CLookToRead2")
         .allowlist_type("CSz.*")
         .allowlist_type("CSha256")
@@ -151,6 +153,7 @@ fn main() {
             "7zBuf2.c",
             "7zCrc.c",
             "7zDec.c",
+            "7zIn.c",
             "7zStream.c",
             "Alloc.c",
             "Bcj2.c",

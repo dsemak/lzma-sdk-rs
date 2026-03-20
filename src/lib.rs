@@ -66,6 +66,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod alone;
+pub mod archive;
 pub mod checksum;
 pub mod error;
 pub mod filter;
@@ -75,6 +76,7 @@ pub mod stream;
 pub mod xz;
 
 pub use alone::{Decoder as AloneDecoder, Encoder as AloneEncoder, LZMA_ALONE_HEADER_SIZE};
+pub use archive::{Archive, ArchiveEntry};
 pub use checksum::{crc64, sha256, Crc64, Sha256};
 pub use error::{Error, Result};
 pub use filter::{BranchConverter, BranchFilter, BranchMode, DeltaFilter};

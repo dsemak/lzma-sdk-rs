@@ -3,11 +3,15 @@
 //! The type mirrors the entrypoint style used by `lzma-safe`: callers start from an owned
 //! `Stream` value and turn it into a format-specific encoder or decoder.
 
+mod ffi;
+
 use crate::error::Result;
 use crate::{
     AloneDecoder, AloneEncoder, Decoder, Encoder, Lzma2Decoder, Lzma2Encoder, Lzma2Options,
     Lzma2Property, LzmaOptions, LzmaProps, RawDecoder, RawEncoder, XzOptions,
 };
+
+pub(crate) use ffi::{LookStream, ReadSeek, SliceInStream, VecOutStream};
 
 /// Owned entrypoint used to construct encoders and decoders.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
