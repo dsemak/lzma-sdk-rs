@@ -84,6 +84,28 @@ pub fn initialize_xz_crc_tables() {
     });
 }
 
+#[cfg(any(feature = "sdk-23-01", feature = "sdk-26-00"))]
+pub fn initialize_sha256() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        unsafe {
+            // SAFETY: The SDK documents this initializer as process-wide setup for SHA-256 dispatch.
+            Sha256Prepare();
+        }
+    });
+}
+
+pub unsafe fn free_with_default_alloc(address: *mut c_void) {
+    if address.is_null() {
+        return;
+    }
+
+    // SAFETY: `address` must have been allocated by the SDK through `default_alloc`.
+    unsafe {
+        default_sz_free(ptr::null_mut(), address);
+    }
+}
+
 #[repr(C)]
 pub struct SliceInStream {
     vtable: ISeqInStream,
